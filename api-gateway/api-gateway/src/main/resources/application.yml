@@ -6,19 +6,25 @@ spring:
     name: api-gateway
   cloud:
     gateway:
-      routes:
-        - id: autenticacion
-          uri: lb://autenticacion
-          predicates:
-            - Path=/api/v1/autenticacion/**
-        - id: compromisos
-          uri: lb://compromisos
-          predicates:
-            - Path=/api/v1/compromisos/**
-        - id: pagos
-          uri: lb://pagos
-          predicates:
-            - Path=/api/v1/pagos/**
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: true
+              lower-case-service-id: true
+          routes:
+            - id: autenticacion
+              uri: lb://autenticacion
+              predicates:
+                - Path=/api/v1/autenticacion/**
+            - id: compromisos
+              uri: lb://compromisos
+              predicates:
+                - Path=/api/v1/compromisos/**
+            - id: pagos
+              uri: lb://pagos
+              predicates:
+                - Path=/api/v1/pagos/**
 
 eureka:
   client:
