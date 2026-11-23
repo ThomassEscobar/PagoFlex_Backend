@@ -30,6 +30,17 @@ public class UsuarioEntidad {
     @Column(name = "nombre_completo", nullable = false, length = 120)
     private String nombreCompleto;
 
+    // --- CAMPOS NUEVOS ---
+    @Column(length = 20)
+    private String rut;
+
+    @Column(length = 20)
+    private String rol;
+
+    @Column(name = "empresa_id")
+    private UUID empresaId;
+    // ---------------------
+
     @Column(nullable = false, length = 20)
     private String estado;
 

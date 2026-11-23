@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import cl.pagoflex.autenticacion.aplicacion.dto.LoginRequest;
 import cl.pagoflex.autenticacion.aplicacion.dto.LoginResponse;
+import cl.pagoflex.autenticacion.aplicacion.dto.OlvideRequest;
+import cl.pagoflex.autenticacion.aplicacion.dto.RegistroRequest;
 import cl.pagoflex.autenticacion.aplicacion.service.AutenticacionService;
 
 @RestController
@@ -25,5 +27,16 @@ public class ControladorAutenticacion {
     @PostMapping("/inicio-sesion")
     public ResponseEntity<LoginResponse> iniciarSesion(@RequestBody LoginRequest request) {
         return ResponseEntity.ok(servicioAutenticacion.iniciarSesion(request));
+    }
+        @PostMapping("/registro")
+    public ResponseEntity<Void> registrar(@RequestBody RegistroRequest request) {
+        servicioAutenticacion.registrar(request);
+        return ResponseEntity.status(201).build();
+    }
+
+    @PostMapping("/contrasena/olvide")
+    public ResponseEntity<Void> olvidarContrasena(@RequestBody OlvideRequest request) {
+        servicioAutenticacion.olvidarContrasena(request);
+        return ResponseEntity.accepted().build();
     }
 }
