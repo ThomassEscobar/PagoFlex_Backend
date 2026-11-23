@@ -1,6 +1,7 @@
 package cl.pagoflex.autenticacion.aplicacion.service;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -23,13 +24,18 @@ import cl.pagoflex.autenticacion.infraestructura.security.JwtEmisor;
 @Service
 public class AutenticacionService {
 
+    private static final String ROL_USUARIO = "USUARIO";
+    private static final String ROL_EJECUTIVO = "EJECUTIVO";
+
     private final RepositorioUsuarioJpa usuarios;
-    private final RepositorioRolJpa roles; // Agregado
+    private final RepositorioRolJpa roles;
     private final PasswordEncoder encoder;
     private final JwtEmisor jwtEmisor;
 
-    // Actualizamos el constructor
-    public AutenticacionService(RepositorioUsuarioJpa usuarios, RepositorioRolJpa roles, PasswordEncoder encoder, JwtEmisor jwtEmisor) {
+    public AutenticacionService(RepositorioUsuarioJpa usuarios,
+                                RepositorioRolJpa roles,
+                                PasswordEncoder encoder,
+                                JwtEmisor jwtEmisor) {
         this.usuarios = usuarios;
         this.roles = roles;
         this.encoder = encoder;
@@ -44,34 +50,35 @@ public class AutenticacionService {
             throw new RuntimeException("Credenciales inválidas");
         }
 
+        if (!"ACTIVO".equals(usuario.getEstado())) {
+            throw new RuntimeException("La cuenta está bloqueada. Contacta a PagoFlex.");
+        }
+
         String tokenAcceso = jwtEmisor.generarToken(usuario);
-        String tokenRenovacion = UUID.randomUUID().toString(); 
-
-        List<String> listaRoles = usuario.getRoles().stream()
-                .map(r -> r.getNombre())
-                .collect(Collectors.toList());
-
-        UsuarioDto usuarioDto = UsuarioDto.builder()
-                .id(usuario.getId())
-                .correo(usuario.getCorreo())
-                .nombreCompleto(usuario.getNombreCompleto())
-                .roles(listaRoles)
-                .build();
+        String tokenRenovacion = UUID.randomUUID().toString();
 
         return LoginResponse.builder()
                 .tokenAcceso(tokenAcceso)
                 .tokenRenovacion(tokenRenovacion)
                 .expiraEn(Instant.now().plusSeconds(15 * 60).toEpochMilli())
-                .usuario(usuarioDto)
+                .usuario(aDto(usuario))
                 .build();
     }
 
-    // --- MÉTODO DE REGISTRO NUEVO ---
+    /** Registro público: solo permite crear clientes o ejecutivos, nunca administradores. */
     public void registrar(RegistroRequest request) {
         if (usuarios.findByCorreo(request.getCorreo()).isPresent()) {
             throw new RuntimeException("El correo ya está registrado");
         }
-        
+
+        String rol = request.getRol() == null ? ROL_USUARIO : request.getRol().trim().toUpperCase();
+        if (!ROL_USUARIO.equals(rol) && !ROL_EJECUTIVO.equals(rol)) {
+            throw new RuntimeException("Rol no permitido en el registro");
+        }
+        if (ROL_EJECUTIVO.equals(rol) && request.getEmpresaId() == null) {
+            throw new RuntimeException("Un ejecutivo debe indicar su empresa");
+        }
+
         UsuarioEntidad u = new UsuarioEntidad();
         u.setId(UUID.randomUUID());
         u.setCorreo(request.getCorreo());
@@ -80,22 +87,47 @@ public class AutenticacionService {
         u.setEstado("ACTIVO");
         u.setCreadoEn(Instant.now());
         u.setActualizadoEn(Instant.now());
-        
-        // Guardamos los datos extras
         u.setRut(request.getRut());
-        u.setRol(request.getRol() != null ? request.getRol() : "USUARIO");
-        u.setEmpresaId(request.getEmpresaId());
-        
-        // Asignamos el rol por defecto
-        RolEntidad rolUser = roles.findByNombre("USER").orElseThrow(() -> new RuntimeException("Rol no encontrado"));
+        u.setRol(rol);
+        u.setEmpresaId(ROL_EJECUTIVO.equals(rol) ? request.getEmpresaId() : null);
+
+        RolEntidad rolUser = roles.findByNombre("USER")
+                .orElseThrow(() -> new RuntimeException("Rol no encontrado"));
         u.setRoles(Set.of(rolUser));
-        
+
         usuarios.save(u);
     }
 
-    // --- MÉTODO PARA OLVIDÉ MI CONTRASEÑA ---
+    /**
+     * Listado de cuentas para las vistas de administración y de ejecutivo.
+     * No devuelve hashes ni datos sensibles.
+     */
+    public List<UsuarioDto> listarUsuarios() {
+        return usuarios.findAll().stream()
+                .map(this::aDto)
+                .sorted(Comparator.comparing(UsuarioDto::getNombreCompleto,
+                        Comparator.nullsLast(String::compareToIgnoreCase)))
+                .collect(Collectors.toList());
+    }
+
     public void olvidarContrasena(OlvideRequest request) {
-        // Aquí iría la lógica real de envío de correo.
-        System.out.println("📧 Enviando código a: " + request.getCorreo());
+        // Aquí iría la lógica real de envío de correo (MailHog en desarrollo).
+        System.out.println("📧 Enviando código de recuperación a: " + request.getCorreo());
+    }
+
+    private UsuarioDto aDto(UsuarioEntidad usuario) {
+        List<String> rolesSeguridad = usuario.getRoles() == null
+                ? List.of()
+                : usuario.getRoles().stream().map(RolEntidad::getNombre).collect(Collectors.toList());
+
+        return UsuarioDto.builder()
+                .id(usuario.getId())
+                .correo(usuario.getCorreo())
+                .nombreCompleto(usuario.getNombreCompleto())
+                .rol(usuario.getRol())
+                .rut(usuario.getRut())
+                .empresaId(usuario.getEmpresaId())
+                .roles(rolesSeguridad)
+                .build();
     }
 }

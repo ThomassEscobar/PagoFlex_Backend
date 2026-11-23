@@ -39,20 +39,30 @@ public class JwtEmisor {
                     .map(r -> r.getNombre())
                     .collect(Collectors.toList());
 
-            return Jwts.builder()
+            var builder = Jwts.builder()
                     .subject(usuario.getId().toString())
                     .issuer(emisor)
                     .claim("correo", usuario.getCorreo())
+                    .claim("nombre", usuario.getNombreCompleto())
                     .claim("roles", roles)
+                    // Rol de aplicación: ADMIN | EJECUTIVO | USUARIO
+                    .claim("rol", usuario.getRol());
+
+            if (usuario.getEmpresaId() != null) {
+                builder.claim("empresaId", usuario.getEmpresaId().toString());
+            }
+
+            return builder
                     .issuedAt(ahora)
                     .expiration(expiracion)
                     .signWith(privateKey)
                     .compact();
         } catch (Exception e) {
-            e.printStackTrace(); // Esto imprimirá el error real en la consola
+            e.printStackTrace(); // Muestra el error real en la consola
             throw new RuntimeException("Error al generar el token JWT", e);
         }
     }
+
     private PrivateKey obtenerLlavePrivada() throws Exception {
         try (InputStream is = clavePrivadaResource.getInputStream()) {
             String key = new String(is.readAllBytes(), StandardCharsets.UTF_8)
@@ -60,7 +70,7 @@ public class JwtEmisor {
                     .replace("-----END PRIVATE KEY-----", "")
                     .replace("-----BEGIN RSA PRIVATE KEY-----", "")
                     .replace("-----END RSA PRIVATE KEY-----", "")
-                    .replaceAll("\\s+", ""); // Quita saltos de línea y espacios
+                    .replaceAll("\\s+", "");
             byte[] keyBytes = Base64.getDecoder().decode(key);
             PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
             KeyFactory kf = KeyFactory.getInstance("RSA");
