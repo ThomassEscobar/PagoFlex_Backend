@@ -25,6 +25,10 @@ spring:
               uri: lb://pagos
               predicates:
                 - Path=/api/v1/pagos/**
+            - id: soporte
+              uri: lb://soporte
+              predicates:
+                - Path=/api/v1/soporte/**
 
 eureka:
   client:
